@@ -1,0 +1,26 @@
+{
+  "name": "form-builder-vue",
+  "version": "1.0.0",
+  "description": "Form Builder con Drag and Drop para generación de HTML/PDF",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "vue": "^3.4.21",
+    "pinia": "^2.1.7",
+    "@vueuse/core": "^10.9.0",
+    "@vueuse/head": "^2.0.0",
+    "axios": "^1.6.7",
+    "bootstrap": "^5.3.3",
+    "@fortawesome/fontawesome-free": "^6.5.1",
+    "vue-draggable-plus": "^0.3.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.4",
+    "vite": "^5.1.5",
+    "sass": "^1.71.1"
+  }
+}
