@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, triggerRef } from 'vue'
 
 export const useFormBuilderStore = defineStore('formBuilder', () => {
   // Estado
@@ -135,9 +135,20 @@ export const useFormBuilderStore = defineStore('formBuilder', () => {
       icon: 'fa-table-cells',
       label: 'Contenedor',
       defaultProps: {
-        borderRadius: 4,
         columns: 1,
         gap: 15
+      }
+    },
+    {
+      type: 'table',
+      icon: 'fa-table',
+      label: 'Tabla',
+      defaultProps: {
+        columns: [
+          { id: 'col1', name: 'Columna 1' },
+          { id: 'col2', name: 'Columna 2' },
+          { id: 'col3', name: 'Columna 3' }
+        ]
       }
     }
   ]
@@ -156,34 +167,40 @@ export const useFormBuilderStore = defineStore('formBuilder', () => {
       props: { ...template.defaultProps }
     }
 
-    // Si el elemento es un contenedor, inicializar las columnas
+    // Si el elemento es un contenedor, inicializar las columnas dentro de props
     if (elementType === 'container') {
       const numColumns = template.defaultProps.columns || 1
-      newElement.children = Array(numColumns).fill(null).map(() => [])
-      console.log('Contenedor creado con', numColumns, 'columnas')
+      newElement.props.children = Array(numColumns).fill(null).map(() => [])
+      console.log('Contenedor creado con', numColumns, 'columnas', newElement.props.children)
     }
 
     if (parentId && columnIndex !== null) {
       // Agregar a un contenedor específico
       const parent = findElementById(elements.value, parentId)
-      console.log('Agregando a contenedor:', { parentId, columnIndex, parent: parent?.id, hasChildren: !!parent?.children })
+      console.log('Agregando a contenedor:', { parentId, columnIndex, parent: parent?.id, hasChildren: !!parent?.props?.children })
       
       if (parent) {
-        // Asegurar que children existe
-        if (!parent.children) {
+        // Asegurar que children existe dentro de props
+        if (!parent.props.children) {
           const numColumns = parent.props.columns || 1
-          parent.children = Array(numColumns).fill(null).map(() => [])
+          parent.props.children = Array(numColumns).fill(null).map(() => [])
           console.log('Children inicializado con', numColumns, 'columnas')
         }
         
         // Asegurar que la columna existe
-        if (!parent.children[columnIndex]) {
-          parent.children[columnIndex] = []
+        if (!parent.props.children[columnIndex]) {
+          parent.props.children[columnIndex] = []
           console.log('Columna', columnIndex, 'inicializada')
         }
         
-        parent.children[columnIndex].push(newElement)
+        // Crear nuevo array para forzar reactividad
+        const newColumn = [...parent.props.children[columnIndex], newElement]
+        const newChildren = [...parent.props.children]
+        newChildren[columnIndex] = newColumn
+        parent.props.children = newChildren
+        
         console.log('Elemento agregado a columna', columnIndex, 'del contenedor', parentId)
+        console.log('Contenido de la columna:', parent.props.children[columnIndex])
       } else {
         console.error('Parent no encontrado:', parentId)
       }
@@ -208,8 +225,8 @@ export const useFormBuilderStore = defineStore('formBuilder', () => {
       
       // Buscar en elementos con children (contenedores)
       for (const item of items) {
-        if (item.children) {
-          for (const column of item.children) {
+        if (item.props?.children) {
+          for (const column of item.props.children) {
             if (removeRecursive(column)) {
               return true
             }
@@ -229,41 +246,70 @@ export const useFormBuilderStore = defineStore('formBuilder', () => {
   function updateElementProps(elementId, props) {
     const element = findElementById(elements.value, elementId)
     if (element) {
+      console.log('updateElementProps - antes:', { 
+        elementId, 
+        oldProps: JSON.parse(JSON.stringify(element.props)), 
+        newProps: props 
+      })
+      
       const oldColumns = element.props.columns
       element.props = { ...element.props, ...props }
+      
+      console.log('updateElementProps - después:', { 
+        elementId, 
+        updatedProps: JSON.parse(JSON.stringify(element.props)) 
+      })
       
       // Si es un contenedor y cambió el número de columnas, ajustar
       if (element.type === 'container' && props.columns !== undefined && oldColumns !== props.columns) {
         adjustContainerColumns(element, props.columns)
       }
+      
+      // Forzar reactividad usando triggerRef
+      triggerRef(elements)
+      console.log('Reactividad forzada con triggerRef')
+    } else {
+      console.error('updateElementProps - elemento no encontrado:', elementId)
     }
   }
 
   function adjustContainerColumns(container, newColumnCount) {
-    if (!container.children) {
-      container.children = Array(newColumnCount).fill(null).map(() => [])
+    console.log('adjustContainerColumns llamado:', { 
+      containerId: container.id,
+      currentColumns: container.props.children?.length, 
+      newColumnCount 
+    })
+    
+    if (!container.props.children) {
+      container.props = {
+        ...container.props,
+        children: Array(newColumnCount).fill(null).map(() => [])
+      }
       console.log('Children inicializado con', newColumnCount, 'columnas')
       return
     }
 
-    const currentColumns = container.children.length
+    const currentColumns = container.props.children.length
     
     if (newColumnCount > currentColumns) {
-      // Agregar columnas vacías
+      // Agregar columnas vacías - crear nuevo array para reactividad
+      const newChildren = [...container.props.children]
       for (let i = currentColumns; i < newColumnCount; i++) {
-        container.children.push([])
+        newChildren.push([])
       }
+      container.props = { ...container.props, children: newChildren }
       console.log('Columnas agregadas de', currentColumns, 'a', newColumnCount)
     } else if (newColumnCount < currentColumns) {
       // Mover elementos de columnas eliminadas a la última columna
       const elementsToMove = []
       for (let i = newColumnCount; i < currentColumns; i++) {
-        elementsToMove.push(...container.children[i])
+        elementsToMove.push(...container.props.children[i])
       }
-      container.children = container.children.slice(0, newColumnCount)
-      if (container.children.length > 0 && elementsToMove.length > 0) {
-        container.children[container.children.length - 1].push(...elementsToMove)
+      const newChildren = container.props.children.slice(0, newColumnCount)
+      if (newChildren.length > 0 && elementsToMove.length > 0) {
+        newChildren[newChildren.length - 1] = [...newChildren[newChildren.length - 1], ...elementsToMove]
       }
+      container.props = { ...container.props, children: newChildren }
       console.log('Columnas reducidas de', currentColumns, 'a', newColumnCount, '- elementos movidos:', elementsToMove.length)
     }
   }
@@ -273,8 +319,8 @@ export const useFormBuilderStore = defineStore('formBuilder', () => {
       if (item.id === id) {
         return item
       }
-      if (item.children) {
-        for (const column of item.children) {
+      if (item.props?.children) {
+        for (const column of item.props.children) {
           const found = findElementById(column, id)
           if (found) return found
         }
@@ -305,8 +351,8 @@ export const useFormBuilderStore = defineStore('formBuilder', () => {
         props: { ...el.props }
       }
       
-      if (el.children) {
-        newEl.children = el.children.map(column => 
+      if (el.props?.children) {
+        newEl.props.children = el.props.children.map(column => 
           column.map(child => duplicateRecursive(child))
         )
       }
@@ -324,8 +370,8 @@ export const useFormBuilderStore = defineStore('formBuilder', () => {
       }
       
       for (const item of items) {
-        if (item.children) {
-          for (const column of item.children) {
+        if (item.props?.children) {
+          for (const column of item.props.children) {
             if (duplicateInArray(column)) {
               return true
             }

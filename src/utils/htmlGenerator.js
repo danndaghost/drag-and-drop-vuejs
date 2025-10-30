@@ -12,6 +12,7 @@ export function generateHTML(elements) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Formulario Generado</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <style>
     * {
       margin: 0;
@@ -94,7 +95,8 @@ function generateElementHTML(element) {
     divider: generateDividerHTML,
     image: generateImageHTML,
     spacer: generateSpacerHTML,
-    container: generateContainerHTML
+    container: generateContainerHTML,
+    table: generateTableHTML
   }
   
   const generator = generators[element.type]
@@ -223,10 +225,6 @@ function generateSpacerHTML(props) {
 }
 
 function generateContainerHTML(props) {
-  const style = `
-    border-radius: ${props.borderRadius}px;
-  `.trim().replace(/\s+/g, ' ')
-  
   // Si tiene columnas con elementos
   if (props.children && props.children.length > 0) {
     const hasContent = props.children.some(col => col.length > 0)
@@ -245,7 +243,7 @@ ${columnItems}
       </div>`
       }).join('\n')
       
-      return `    <div style="${style}">
+      return `    <div>
       <div style="${columnsStyle}">
 ${columnsHTML}
       </div>
@@ -254,7 +252,83 @@ ${columnsHTML}
   }
   
   // Contenedor vacío
-  return `    <div style="${style} min-height: 60px;"></div>`
+  return `    <div style="min-height: 60px;"></div>`
+}
+
+function generateTableHTML(props, elementId) {
+  const tableId = `table-${elementId}`
+  
+  // Generar encabezados
+  const headers = props.columns.map(col => 
+    `          <th>${escapeHtml(col.name)}</th>`
+  ).join('\n')
+  
+  // Generar celdas vacías para la primera fila de ejemplo
+  const emptyCells = props.columns.map(() => 
+    `            <td><input type="text" class="form-control form-control-sm" /></td>`
+  ).join('\n')
+  
+  return `    <div class="table-container" id="${tableId}-container">
+      <table class="table table-bordered" id="${tableId}" style="margin-bottom: 1rem;">
+        <thead style="background-color: #f8f9fa;">
+          <tr>
+${headers}
+            <th style="width: 80px;">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="${tableId}-body">
+          <tr>
+${emptyCells}
+            <td style="text-align: center;">
+              <button type="button" class="btn btn-sm btn-danger" onclick="removeTableRow(this)">
+                <i class="fas fa-trash"></i>
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <button type="button" class="btn btn-sm btn-primary" onclick="addTableRow('${tableId}', ${props.columns.length})">
+        <i class="fas fa-plus"></i> Agregar fila
+      </button>
+    </div>
+    
+    <script>
+      function addTableRow(tableId, columnCount) {
+        const tbody = document.getElementById(tableId + '-body');
+        const newRow = document.createElement('tr');
+        
+        for (let i = 0; i < columnCount; i++) {
+          const td = document.createElement('td');
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.className = 'form-control form-control-sm';
+          td.appendChild(input);
+          newRow.appendChild(td);
+        }
+        
+        const actionTd = document.createElement('td');
+        actionTd.style.textAlign = 'center';
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'btn btn-sm btn-danger';
+        removeBtn.innerHTML = '<i class="fas fa-trash"></i>';
+        removeBtn.onclick = function() { removeTableRow(this); };
+        actionTd.appendChild(removeBtn);
+        newRow.appendChild(actionTd);
+        
+        tbody.appendChild(newRow);
+      }
+      
+      function removeTableRow(btn) {
+        const row = btn.closest('tr');
+        const tbody = row.parentElement;
+        if (tbody.children.length > 1) {
+          row.remove();
+        } else {
+          alert('La tabla debe tener al menos una fila');
+        }
+      }
+    </script>`
 }
 
 function escapeHtml(text) {

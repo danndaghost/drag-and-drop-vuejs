@@ -40,6 +40,7 @@ import DividerProperties from './properties/DividerProperties.vue'
 import ImageProperties from './properties/ImageProperties.vue'
 import SpacerProperties from './properties/SpacerProperties.vue'
 import ContainerProperties from './properties/ContainerProperties.vue'
+import TableProperties from './properties/TableProperties.vue'
 
 const store = useFormBuilderStore()
 const { selectedElement } = storeToRefs(store)
@@ -57,7 +58,8 @@ const propertiesComponents = {
   divider: DividerProperties,
   image: ImageProperties,
   spacer: SpacerProperties,
-  container: ContainerProperties
+  container: ContainerProperties,
+  table: TableProperties
 }
 
 const propertiesComponent = computed(() => {

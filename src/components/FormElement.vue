@@ -50,6 +50,7 @@ import DividerElement from './elements/DividerElement.vue'
 import ImageElement from './elements/ImageElement.vue'
 import SpacerElement from './elements/SpacerElement.vue'
 import ContainerElement from './elements/ContainerElement.vue'
+import TableElement from './elements/TableElement.vue'
 
 const props = defineProps({
   element: {
@@ -80,7 +81,8 @@ const elementComponents = {
   divider: DividerElement,
   image: ImageElement,
   spacer: SpacerElement,
-  container: ContainerElement
+  container: ContainerElement,
+  table: TableElement
 }
 
 const elementComponent = computed(() => {

@@ -14,6 +14,8 @@
         <option :value="2">2 columnas</option>
         <option :value="3">3 columnas</option>
         <option :value="4">4 columnas</option>
+        <option :value="5">5 columnas</option>
+        <option :value="6">6 columnas</option>
       </select>
       <small class="text-muted">Define cuántas columnas tendrá el contenedor</small>
     </div>
@@ -34,28 +36,6 @@
       <div class="d-flex justify-content-between">
         <small class="text-muted">0px</small>
         <small class="text-primary fw-bold">{{ localProps.gap }}px</small>
-        <small class="text-muted">50px</small>
-      </div>
-    </div>
-
-    <hr class="my-3" />
-
-    <div class="mb-3">
-      <label class="form-label">
-        <i class="fas fa-border-style me-1"></i>
-        Border radius (px)
-      </label>
-      <input 
-        type="range" 
-        class="form-range" 
-        :value="localProps.borderRadius"
-        @input="updateProp('borderRadius', parseInt($event.target.value))"
-        min="0"
-        max="50"
-      />
-      <div class="d-flex justify-content-between">
-        <small class="text-muted">0px</small>
-        <small class="text-primary fw-bold">{{ localProps.borderRadius }}px</small>
         <small class="text-muted">50px</small>
       </div>
     </div>

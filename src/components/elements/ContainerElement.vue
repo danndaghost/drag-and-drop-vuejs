@@ -1,67 +1,36 @@
 <template>
   <div class="container-element" :style="containerStyle">
-    <!-- Mostrar columnas siempre si children existe, incluso si están vacías -->
-    <div v-if="props.children && props.children.length > 0" class="container-columns" :style="columnsStyle">
-      <div 
-        v-for="(column, index) in props.children"
-        :key="`column-${index}`"
-        class="container-column"
-        @dragover.prevent="handleDragOver"
-        @drop="(e) => handleDrop(e, index)"
-      >
-        <div 
-          v-if="column.length === 0" 
-          class="column-placeholder"
-          @dragover.prevent="handleDragOver"
-          @drop="(e) => handleDrop(e, index)"
-        >
-          <i class="fas fa-plus"></i>
-          <span>Columna {{ index + 1 }}</span>
-        </div>
-        
-        <VueDraggable 
-          v-else
-          v-model="props.children[index]"
-          class="column-items"
-          :animation="200"
-          ghostClass="column-ghost"
-          handle=".element__drag-handle"
-          group="nested-elements"
-        >
-          <FormElement 
-            v-for="child in column"
-            :key="child.id"
-            :element="child"
-            :isSelected="selectedElementId === child.id"
-            :isNested="true"
-            @select="selectElement(child.id)"
-            @remove="removeElement(child.id)"
-            @duplicate="duplicateElement(child.id)"
-          />
-        </VueDraggable>
-      </div>
+    <!-- Mostrar columnas siempre -->
+    <div v-if="componentProps.props.children" class="container-columns" :style="columnsStyle">
+      <ContainerColumn
+        v-for="(column, index) in componentProps.props.children"
+        :key="`column-${componentProps.elementId}-${index}`"
+        :ref="el => columnRefs[index] = el"
+        :columnData="column"
+        :columnIndex="index"
+        :containerId="componentProps.elementId"
+        @update="handleColumnUpdate"
+        @dragEnd="handleDragEnd"
+      />
     </div>
     
-    <!-- Fallback si no hay children inicializados -->
+    <!-- Fallback solo si children NO existe (nunca debería pasar) -->
     <div 
       v-else
       class="container-placeholder"
-      @dragover.prevent="handleDragOver"
-      @drop="(e) => handleDrop(e, 0)"
     >
       <i class="fas fa-table-cells"></i>
-      <span>Arrastra elementos aquí ({{ props.columns }} columna{{ props.columns > 1 ? 's' : '' }})</span>
+      <span>Inicializando contenedor...</span>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { storeToRefs } from 'pinia'
-import { VueDraggable } from 'vue-draggable-plus'
+import { computed, watchEffect, ref } from 'vue'
 import { useFormBuilderStore } from '../../stores/formBuilder'
+import ContainerColumn from './ContainerColumn.vue'
 
-const elementProps = defineProps({
+const componentProps = defineProps({
   props: {
     type: Object,
     required: true
@@ -72,46 +41,85 @@ const elementProps = defineProps({
   }
 })
 
-const { props, elementId } = elementProps
-
 const store = useFormBuilderStore()
-const { selectedElementId } = storeToRefs(store)
-const { addElement, selectElement, removeElement, duplicateElement } = store
+const { updateElementProps } = store
 
-// Importar FormElement de forma diferida para evitar dependencia circular
-const FormElement = () => import('../FormElement.vue')
+// Referencias a los componentes de columnas
+const columnRefs = ref([])
+
+// Debug: Log cuando cambian las props
+watchEffect(() => {
+  console.log('ContainerElement render:', {
+    elementId: componentProps.elementId,
+    columns: componentProps.props.columns,
+    hasChildren: !!componentProps.props.children,
+    childrenLength: componentProps.props.children?.length,
+    children: componentProps.props.children
+  })
+})
 
 const containerStyle = computed(() => ({
-  borderRadius: `${props.borderRadius}px`,
   minHeight: '80px'
 }))
 
 const columnsStyle = computed(() => ({
   display: 'grid',
-  gridTemplateColumns: `repeat(${props.columns}, 1fr)`,
-  gap: `${props.gap}px`
+  gridTemplateColumns: `repeat(${componentProps.props.columns}, 1fr)`,
+  gap: `${componentProps.props.gap}px`
 }))
 
-const handleDragOver = (event) => {
-  event.preventDefault()
-  event.stopPropagation()
-  event.dataTransfer.dropEffect = 'copy'
+const handleColumnUpdate = (columnIndex, newValue) => {
+  console.log('🔄 handleColumnUpdate:', { 
+    columnIndex, 
+    newValueLength: newValue?.length,
+    newValue 
+  })
+  
+  // Crear copia profunda de children para evitar mutaciones
+  const newChildren = componentProps.props.children.map((col, idx) => {
+    if (idx === columnIndex) {
+      // Esta columna cambió, usar el nuevo valor
+      return [...newValue]
+    }
+    // Otras columnas, mantener copia
+    return [...col]
+  })
+  
+  console.log('🔄 Actualizando children:', {
+    elementId: componentProps.elementId,
+    newChildren
+  })
+  
+  updateElementProps(componentProps.elementId, { children: newChildren })
 }
 
-const handleDrop = (event, columnIndex) => {
-  event.preventDefault()
-  event.stopPropagation()
+const handleDragEnd = (columnIndex) => {
+  console.log('🏁 handleDragEnd recibido desde columna:', columnIndex)
   
-  const elementType = event.dataTransfer.getData('elementType')
-  console.log('Drop en contenedor:', { elementType, elementId, columnIndex })
+  // Leer el estado actual de TODAS las columnas
+  const newChildren = columnRefs.value.map((colRef, idx) => {
+    if (colRef && colRef.localColumn) {
+      console.log(`📋 Leyendo columna ${idx}:`, colRef.localColumn.map(el => el.id))
+      return [...colRef.localColumn]
+    }
+    return [...componentProps.props.children[idx]]
+  })
   
-  if (elementType && elementType !== 'container') {
-    // No permitir contenedores anidados
-    console.log('Agregando elemento:', elementType, 'al contenedor:', elementId, 'columna:', columnIndex)
-    addElement(elementType, elementId, columnIndex)
-  } else if (elementType === 'container') {
-    console.warn('No se permiten contenedores anidados')
-  }
+  console.log('💾 Sincronizando TODAS las columnas:', {
+    elementId: componentProps.elementId,
+    newChildren: newChildren.map(col => col.map(el => el.id))
+  })
+  
+  updateElementProps(componentProps.elementId, { children: newChildren })
+  
+  // Forzar re-render de TODAS las columnas
+  setTimeout(() => {
+    columnRefs.value.forEach((colRef, idx) => {
+      if (colRef && colRef.forceRerender) {
+        colRef.forceRerender()
+      }
+    })
+  }, 100)
 }
 </script>
 
@@ -144,46 +152,6 @@ const handleDrop = (event, columnIndex) => {
 
   .container-columns {
     min-height: 80px;
-  }
-
-  .container-column {
-    min-height: 60px;
-    background: rgba(255, 255, 255, 0.5);
-    border-radius: 4px;
-    padding: 0.5rem;
-    border: 1px dashed transparent;
-    transition: all 0.2s;
-
-    &:hover {
-      border-color: #dee2e6;
-    }
-
-    .column-placeholder {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 60px;
-      color: #adb5bd;
-      font-size: 0.75rem;
-      border: 1px dashed #dee2e6;
-      border-radius: 4px;
-      background: white;
-
-      i {
-        font-size: 1.25rem;
-        margin-bottom: 0.25rem;
-      }
-    }
-
-    .column-items {
-      min-height: 40px;
-    }
-  }
-
-  .column-ghost {
-    opacity: 0.5;
-    background: #e9ecef;
   }
 }
 </style>
